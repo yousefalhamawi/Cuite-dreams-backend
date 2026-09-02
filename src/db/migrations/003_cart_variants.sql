@@ -1,0 +1,1 @@
+ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS variant_ids JSONB NOT NULL DEFAULT '[]'::jsonb;
