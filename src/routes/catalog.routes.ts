@@ -54,6 +54,13 @@ router.patch(
   validate(productPatchSchema),
   catalog.patchProduct,
 );
+router.delete(
+  '/products/:id',
+  requireAdmin(),
+  writeLimiter,
+  validate(uuidParam, 'params'),
+  catalog.deleteProduct,
+);
 router.post(
   '/products/:id/images',
   requireAdmin(),

@@ -92,8 +92,14 @@ export async function createReview(
   }
 }
 
-export async function listReviewsAdmin(status?: 'pending' | 'approved' | 'all') {
+export async function listReviewsAdmin(
+  status?: 'pending' | 'approved' | 'all',
+  paging?: { page?: number; limit?: number },
+) {
   const filter = status ?? 'pending';
+  const page = Math.max(1, paging?.page ?? 1);
+  const limit = Math.min(100, Math.max(1, paging?.limit ?? 20));
+  const offset = (page - 1) * limit;
   const where =
     filter === 'approved'
       ? 'WHERE r.is_approved = TRUE'
@@ -101,6 +107,9 @@ export async function listReviewsAdmin(status?: 'pending' | 'approved' | 'all') 
         ? ''
         : 'WHERE r.is_approved = FALSE';
 
+  const count = await query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count FROM reviews r ${where}`,
+  );
   const { rows } = await query(
     `SELECT r.*, c.name AS customer_name, p.name_ar AS product_name,
             p.slug_ar, p.slug_en
@@ -108,9 +117,12 @@ export async function listReviewsAdmin(status?: 'pending' | 'approved' | 'all') 
      JOIN customers c ON c.id = r.customer_id
      JOIN products p ON p.id = r.product_id
      ${where}
-     ORDER BY r.created_at DESC`,
+     ORDER BY r.created_at DESC
+     LIMIT $1 OFFSET $2`,
+    [limit, offset],
   );
-  return rows;
+  const total = Number(count.rows[0].count);
+  return { items: rows, page, limit, total, totalPages: Math.ceil(total / limit) || 1 };
 }
 
 export async function moderateReview(
@@ -150,6 +162,23 @@ export async function moderateReview(
     entityType: 'reviews',
     entityId: reviewId,
     afterData: rows[0],
+  });
+  return rows[0];
+}
+
+export async function deleteReview(reviewId: string, adminId: string) {
+  const { rows } = await query(`DELETE FROM reviews WHERE id = $1 RETURNING *`, [reviewId]);
+  if (!rows[0]) throw notFound('Review not found');
+
+  await refreshProductRating(rows[0].product_id as string);
+
+  await writeAudit({
+    actorType: 'admin',
+    actorId: adminId,
+    action: 'review.delete',
+    entityType: 'reviews',
+    entityId: reviewId,
+    beforeData: rows[0],
   });
   return rows[0];
 }

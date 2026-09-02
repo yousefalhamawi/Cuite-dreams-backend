@@ -6,6 +6,7 @@ import { writeLimiter } from '../middlewares/rateLimit';
 import {
   reviewCreateSchema,
   moderateReviewSchema,
+  paginationSchema,
   uuidParam,
 } from '../validators/schemas';
 
@@ -20,7 +21,12 @@ router.post(
   validate(reviewCreateSchema),
   reviews.create,
 );
-router.get('/admin', requireAdmin(), reviews.listAdmin);
+router.get(
+  '/admin',
+  requireAdmin(),
+  validate(paginationSchema, 'query'),
+  reviews.listAdmin,
+);
 router.patch(
   '/admin/:id',
   requireAdmin(),
@@ -28,6 +34,13 @@ router.patch(
   validate(uuidParam, 'params'),
   validate(moderateReviewSchema),
   reviews.moderate,
+);
+router.delete(
+  '/admin/:id',
+  requireAdmin(),
+  writeLimiter,
+  validate(uuidParam, 'params'),
+  reviews.remove,
 );
 
 export default router;

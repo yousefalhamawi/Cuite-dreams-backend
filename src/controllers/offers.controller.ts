@@ -11,8 +11,17 @@ export const listOffers = asyncHandler(async (_req: Request, res: Response) => {
   sendSuccess(res, await offers.listActiveOffers());
 });
 
-export const listAllOffers = asyncHandler(async (_req: Request, res: Response) => {
-  sendSuccess(res, await offers.listAllOffers());
+export const listAllOffers = asyncHandler(async (req: Request, res: Response) => {
+  const result = await offers.listAllOffers({
+    page: req.query.page ? Number(req.query.page) : undefined,
+    limit: req.query.limit ? Number(req.query.limit) : undefined,
+  });
+  sendSuccess(res, result.items, 200, {
+    page: result.page,
+    limit: result.limit,
+    total: result.total,
+    totalPages: result.totalPages,
+  });
 });
 
 export const createOffer = asyncHandler(async (req: Request, res: Response) => {
@@ -23,12 +32,29 @@ export const patchOffer = asyncHandler(async (req: Request, res: Response) => {
   sendSuccess(res, await offers.patchOffer(req.params.id as string, req.body, req.admin!.id));
 });
 
+export const deleteOffer = asyncHandler(async (req: Request, res: Response) => {
+  sendSuccess(res, await offers.deleteOffer(req.params.id as string, req.admin!.id));
+});
+
 export const createCoupon = asyncHandler(async (req: Request, res: Response) => {
   sendCreated(res, await offers.createCoupon(req.body, req.admin!.id));
 });
 
-export const listCoupons = asyncHandler(async (_req: Request, res: Response) => {
-  sendSuccess(res, await offers.listCouponsAdmin());
+export const listCoupons = asyncHandler(async (req: Request, res: Response) => {
+  const result = await offers.listCouponsAdmin({
+    page: req.query.page ? Number(req.query.page) : undefined,
+    limit: req.query.limit ? Number(req.query.limit) : undefined,
+  });
+  sendSuccess(res, result.items, 200, {
+    page: result.page,
+    limit: result.limit,
+    total: result.total,
+    totalPages: result.totalPages,
+  });
+});
+
+export const deleteCoupon = asyncHandler(async (req: Request, res: Response) => {
+  sendSuccess(res, await offers.deleteCoupon(req.params.id as string, req.admin!.id));
 });
 
 export const patchCoupon = asyncHandler(async (req: Request, res: Response) => {

@@ -351,6 +351,20 @@
  *                     max_characters: 20
  *                     available_colors: ["ذهبي", "فضي", "أبيض"]
  *                     available_fonts: ["خط ديواني", "خط نسخ"]
+ *   delete:
+ *     tags: [Catalog, Admin]
+ *     security: [{ AdminBearer: [] }]
+ *     summary: Delete product (blocked if it appears on orders)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Deleted
+ *       409:
+ *         description: Product appears on orders — hide it instead
  *
  * /catalog/products/{id}/images:
  *   post:
@@ -651,6 +665,14 @@
  *           type: string
  *           enum: [pending, paid, processing, shipped, delivered, cancelled]
  *         example: pending
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer }
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer }
+ *         example: 20
  *     responses:
  *       200:
  *         description: Orders
@@ -670,6 +692,8 @@
  *                 limit: 20
  *                 total: 1
  *                 totalPages: 1
+ *                 pending: 3
+ *                 revenue: 145000
  *
  * /orders/admin/{id}/status:
  *   patch:
@@ -697,6 +721,59 @@
  *               data:
  *                 id: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
  *                 status: processing
+ *
+ * /orders/admin/{id}/cancel:
+ *   post:
+ *     tags: [Orders, Admin]
+ *     security: [{ AdminBearer: [] }]
+ *     summary: Cancel an order
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Cancelled
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               data:
+ *                 id: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+ *                 status: cancelled
+ *       400:
+ *         description: Already cancelled or already delivered
+ *
+ * /orders/admin/{id}:
+ *   get:
+ *     tags: [Orders, Admin]
+ *     security: [{ AdminBearer: [] }]
+ *     summary: Get order detail
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Order with items
+ *       404:
+ *         description: Order not found
+ *   delete:
+ *     tags: [Orders, Admin]
+ *     security: [{ AdminBearer: [] }]
+ *     summary: Delete an order and its items
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Deleted
+ *       404:
+ *         description: Order not found
  *
  * /shipping/zones:
  *   get:
@@ -818,6 +895,53 @@
  *       201:
  *         description: Created
  *
+ * /offers/admin:
+ *   get:
+ *     tags: [Offers, Admin]
+ *     security: [{ AdminBearer: [] }]
+ *     summary: Admin list all offers
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer }
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer }
+ *         example: 20
+ *     responses:
+ *       200:
+ *         description: Paginated offers
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               data:
+ *                 - id: dddddddd-dddd-dddd-dddd-dddddddddddd
+ *                   name: عرض استقبال المولود
+ *                   is_active: true
+ *               meta:
+ *                 page: 1
+ *                 limit: 20
+ *                 total: 1
+ *                 totalPages: 1
+ *
+ * /offers/{id}:
+ *   delete:
+ *     tags: [Offers, Admin]
+ *     security: [{ AdminBearer: [] }]
+ *     summary: Delete offer
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Deleted
+ *       404:
+ *         description: Offer not found
+ *
  * /offers/coupons:
  *   post:
  *     tags: [Offers, Admin]
@@ -838,6 +962,54 @@
  *     responses:
  *       201:
  *         description: Created
+ *
+ * /offers/coupons/admin:
+ *   get:
+ *     tags: [Offers, Admin]
+ *     security: [{ AdminBearer: [] }]
+ *     summary: Admin list coupons
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer }
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer }
+ *         example: 20
+ *     responses:
+ *       200:
+ *         description: Paginated coupons
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               data:
+ *                 - id: 12121212-1212-1212-1212-121212121212
+ *                   code: WELCOME10
+ *                   discount_rate: "10.00"
+ *                   is_active: true
+ *               meta:
+ *                 page: 1
+ *                 limit: 20
+ *                 total: 1
+ *                 totalPages: 1
+ *
+ * /offers/coupons/{id}:
+ *   delete:
+ *     tags: [Offers, Admin]
+ *     security: [{ AdminBearer: [] }]
+ *     summary: Delete coupon
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Deleted
+ *       404:
+ *         description: Coupon not found
  *
  * /offers/coupons/validate:
  *   post:
@@ -914,14 +1086,44 @@
  *                 rating: 5
  *                 is_approved: false
  *
- * /reviews/admin/pending:
+ * /reviews/admin:
  *   get:
  *     tags: [Reviews, Admin]
  *     security: [{ AdminBearer: [] }]
- *     summary: List pending reviews
+ *     summary: Admin list reviews
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, approved, all]
+ *         example: pending
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer }
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer }
+ *         example: 20
  *     responses:
  *       200:
- *         description: Pending reviews
+ *         description: Paginated reviews
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               data:
+ *                 - id: eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee
+ *                   rating: 5
+ *                   is_approved: false
+ *                   customer_name: سارة أحمد
+ *                   product_name: بطانية مطرزة
+ *               meta:
+ *                 page: 1
+ *                 limit: 20
+ *                 total: 1
+ *                 totalPages: 1
  *
  * /reviews/admin/{id}:
  *   patch:
@@ -949,6 +1151,20 @@
  *     responses:
  *       200:
  *         description: Moderated
+ *   delete:
+ *     tags: [Reviews, Admin]
+ *     security: [{ AdminBearer: [] }]
+ *     summary: Delete review and refresh product rating
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Deleted
+ *       404:
+ *         description: Review not found
  *
  * /uploads/images:
  *   post:

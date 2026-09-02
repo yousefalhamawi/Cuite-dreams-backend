@@ -337,8 +337,22 @@ export async function listOrdersAdmin(filters: {
      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, limit, offset],
   );
+  const stats = await query<{ pending: string; revenue: string }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE status = 'pending')::text AS pending,
+       COALESCE(SUM(total) FILTER (WHERE status <> 'cancelled'), 0)::text AS revenue
+     FROM orders`,
+  );
   const total = Number(count.rows[0].count);
-  return { items: rows, page, limit, total, totalPages: Math.ceil(total / limit) || 1 };
+  return {
+    items: rows,
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit) || 1,
+    pending: Number(stats.rows[0].pending),
+    revenue: Number(stats.rows[0].revenue),
+  };
 }
 
 export async function listOrdersForCustomer(customerId: string) {
@@ -374,4 +388,61 @@ export async function updateOrderStatus(
     afterData: { status: rows[0].status },
   });
   return rows[0];
+}
+
+export async function cancelOrderAdmin(orderId: string, adminId: string) {
+  const { rows: existing } = await query(`SELECT * FROM orders WHERE id = $1`, [orderId]);
+  if (!existing[0]) throw notFound('Order not found');
+  if (existing[0].status === 'cancelled') throw badRequest('Order is already cancelled');
+  if (existing[0].status === 'delivered') throw badRequest('Cannot cancel a delivered order');
+
+  const { rows } = await query(
+    `UPDATE orders SET status = 'cancelled' WHERE id = $1 RETURNING *`,
+    [orderId],
+  );
+
+  await writeAudit({
+    actorType: 'admin',
+    actorId: adminId,
+    action: 'order.cancel',
+    entityType: 'orders',
+    entityId: orderId,
+    beforeData: { status: existing[0].status },
+    afterData: { status: rows[0].status },
+  });
+  return rows[0];
+}
+
+export async function deleteOrderAdmin(orderId: string, adminId: string) {
+  return withTransaction(async (client) => {
+    const { rows: existing } = await client.query(`SELECT * FROM orders WHERE id = $1`, [
+      orderId,
+    ]);
+    if (!existing[0]) throw notFound('Order not found');
+
+    const items = await client.query<{ id: string }>(
+      `SELECT id FROM order_items WHERE order_id = $1`,
+      [orderId],
+    );
+    const itemIds = items.rows.map((row) => row.id);
+
+    if (itemIds.length) {
+      await client.query(`DELETE FROM reviews WHERE order_item_id = ANY($1::uuid[])`, [
+        itemIds,
+      ]);
+    }
+    await client.query(`DELETE FROM coupon_usage WHERE order_id = $1`, [orderId]);
+    await client.query(`DELETE FROM order_items WHERE order_id = $1`, [orderId]);
+    await client.query(`DELETE FROM orders WHERE id = $1`, [orderId]);
+
+    await writeAudit({
+      actorType: 'admin',
+      actorId: adminId,
+      action: 'order.delete',
+      entityType: 'orders',
+      entityId: orderId,
+      beforeData: existing[0],
+    });
+    return existing[0];
+  });
 }

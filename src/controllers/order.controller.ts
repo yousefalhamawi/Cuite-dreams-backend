@@ -44,6 +44,8 @@ export const adminList = asyncHandler(async (req: Request, res: Response) => {
     limit: result.limit,
     total: result.total,
     totalPages: result.totalPages,
+    pending: result.pending,
+    revenue: result.revenue,
   });
 });
 
@@ -58,5 +60,15 @@ export const adminStatus = asyncHandler(async (req: Request, res: Response) => {
     req.body.status,
     req.admin!.id,
   );
+  sendSuccess(res, row);
+});
+
+export const adminCancel = asyncHandler(async (req: Request, res: Response) => {
+  const row = await orderService.cancelOrderAdmin(req.params.id as string, req.admin!.id);
+  sendSuccess(res, row);
+});
+
+export const adminDelete = asyncHandler(async (req: Request, res: Response) => {
+  const row = await orderService.deleteOrderAdmin(req.params.id as string, req.admin!.id);
   sendSuccess(res, row);
 });

@@ -1,4 +1,4 @@
-import { query } from '../config/database';
+import { query, withTransaction } from '../config/database';
 import { notFound } from '../utils/errors';
 import { writeAudit } from './audit.service';
 import { slugifyEn, uniqueSlug } from '../utils/slug';
@@ -38,7 +38,14 @@ export async function listActiveOffers() {
   return rows;
 }
 
-export async function listAllOffers() {
+export async function listAllOffers(filters: { page?: number; limit?: number } = {}) {
+  const page = Math.max(1, filters.page ?? 1);
+  const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
+  const offset = (page - 1) * limit;
+
+  const count = await query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count FROM offers`,
+  );
   const { rows } = await query(
     `SELECT o.*,
        COALESCE(json_agg(
@@ -57,9 +64,12 @@ export async function listAllOffers() {
      LEFT JOIN offer_products op ON op.offer_id = o.id
      LEFT JOIN products p ON p.id = op.product_id
      GROUP BY o.id
-     ORDER BY o.start_date DESC`,
+     ORDER BY o.start_date DESC
+     LIMIT $1 OFFSET $2`,
+    [limit, offset],
   );
-  return rows;
+  const total = Number(count.rows[0].count);
+  return { items: rows, page, limit, total, totalPages: Math.ceil(total / limit) || 1 };
 }
 
 export async function getOfferBySlug(slug: string) {
@@ -175,6 +185,26 @@ export async function patchOffer(
   return rows[0];
 }
 
+export async function deleteOffer(id: string, adminId: string) {
+  return withTransaction(async (client) => {
+    const { rows } = await client.query(`SELECT * FROM offers WHERE id = $1`, [id]);
+    if (!rows[0]) throw notFound('Offer not found');
+
+    await client.query(`DELETE FROM offer_products WHERE offer_id = $1`, [id]);
+    await client.query(`DELETE FROM offers WHERE id = $1`, [id]);
+
+    await writeAudit({
+      actorType: 'admin',
+      actorId: adminId,
+      action: 'offer.delete',
+      entityType: 'offers',
+      entityId: id,
+      beforeData: rows[0],
+    });
+    return rows[0];
+  });
+}
+
 export async function createCoupon(
   data: {
     code: string;
@@ -212,13 +242,43 @@ export async function createCoupon(
   return rows[0];
 }
 
-export async function listCouponsAdmin() {
+export async function listCouponsAdmin(filters: { page?: number; limit?: number } = {}) {
+  const page = Math.max(1, filters.page ?? 1);
+  const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
+  const offset = (page - 1) * limit;
+
+  const count = await query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count FROM coupons`,
+  );
   const { rows } = await query(
     `SELECT id, code, discount_rate, min_order_value, max_uses, uses_count,
             expires_at, applies_to_offer_id, is_active, created_at
-     FROM coupons ORDER BY created_at DESC`,
+     FROM coupons ORDER BY created_at DESC
+     LIMIT $1 OFFSET $2`,
+    [limit, offset],
   );
-  return rows;
+  const total = Number(count.rows[0].count);
+  return { items: rows, page, limit, total, totalPages: Math.ceil(total / limit) || 1 };
+}
+
+export async function deleteCoupon(id: string, adminId: string) {
+  return withTransaction(async (client) => {
+    const { rows } = await client.query(`SELECT * FROM coupons WHERE id = $1`, [id]);
+    if (!rows[0]) throw notFound('Coupon not found');
+
+    await client.query(`DELETE FROM coupon_usage WHERE coupon_id = $1`, [id]);
+    await client.query(`DELETE FROM coupons WHERE id = $1`, [id]);
+
+    await writeAudit({
+      actorType: 'admin',
+      actorId: adminId,
+      action: 'coupon.delete',
+      entityType: 'coupons',
+      entityId: id,
+      beforeData: rows[0],
+    });
+    return rows[0];
+  });
 }
 
 export async function patchCoupon(

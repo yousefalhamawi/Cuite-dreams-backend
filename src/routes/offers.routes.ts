@@ -6,6 +6,7 @@ import { writeLimiter } from '../middlewares/rateLimit';
 import {
   offerCreateSchema,
   couponCreateSchema,
+  paginationSchema,
   uuidParam,
 } from '../validators/schemas';
 import { z } from 'zod';
@@ -13,8 +14,18 @@ import { z } from 'zod';
 const router = Router();
 
 router.get('/', offers.listOffers);
-router.get('/admin', requireAdmin(), offers.listAllOffers);
-router.get('/coupons/admin', requireAdmin(), offers.listCoupons);
+router.get(
+  '/admin',
+  requireAdmin(),
+  validate(paginationSchema, 'query'),
+  offers.listAllOffers,
+);
+router.get(
+  '/coupons/admin',
+  requireAdmin(),
+  validate(paginationSchema, 'query'),
+  offers.listCoupons,
+);
 router.post(
   '/',
   requireAdmin(),
@@ -47,6 +58,13 @@ router.patch(
   validate(uuidParam, 'params'),
   offers.patchCoupon,
 );
+router.delete(
+  '/coupons/:id',
+  requireAdmin(),
+  writeLimiter,
+  validate(uuidParam, 'params'),
+  offers.deleteCoupon,
+);
 
 router.get('/:slug', offers.getOffer);
 
@@ -56,6 +74,13 @@ router.patch(
   writeLimiter,
   validate(uuidParam, 'params'),
   offers.patchOffer,
+);
+router.delete(
+  '/:id',
+  requireAdmin(),
+  writeLimiter,
+  validate(uuidParam, 'params'),
+  offers.deleteOffer,
 );
 
 export default router;

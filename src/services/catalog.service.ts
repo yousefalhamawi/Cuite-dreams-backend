@@ -1,5 +1,5 @@
-import { query } from '../config/database';
-import { notFound } from '../utils/errors';
+import { query, withTransaction } from '../config/database';
+import { conflict, notFound } from '../utils/errors';
 import type { PaginatedResult } from '../types';
 import { writeAudit } from './audit.service';
 import { isUuid, slugifyAr, slugifyEn, uniqueSlug } from '../utils/slug';
@@ -478,6 +478,43 @@ export async function patchProduct(
     afterData: rows[0],
   });
   return rows[0];
+}
+
+export async function deleteProduct(id: string, adminId: string) {
+  return withTransaction(async (client) => {
+    const { rows: existing } = await client.query(`SELECT * FROM products WHERE id = $1`, [
+      id,
+    ]);
+    if (!existing[0]) throw notFound('Product not found');
+
+    const used = await client.query(
+      `SELECT 1 FROM order_items WHERE product_id = $1 LIMIT 1`,
+      [id],
+    );
+    if (used.rows[0]) {
+      throw conflict(
+        'Cannot delete a product that appears on orders. Hide it instead.',
+      );
+    }
+
+    await client.query(
+      `DELETE FROM cart_item_customizations
+       WHERE cart_item_id IN (SELECT id FROM cart_items WHERE product_id = $1)`,
+      [id],
+    );
+    await client.query(`DELETE FROM cart_items WHERE product_id = $1`, [id]);
+    await client.query(`DELETE FROM products WHERE id = $1`, [id]);
+
+    await writeAudit({
+      actorType: 'admin',
+      actorId: adminId,
+      action: 'product.delete',
+      entityType: 'products',
+      entityId: id,
+      beforeData: existing[0],
+    });
+    return existing[0];
+  });
 }
 
 export async function addProductImage(

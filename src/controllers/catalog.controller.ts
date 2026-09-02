@@ -77,6 +77,11 @@ export const patchProduct = asyncHandler(async (req: Request, res: Response) => 
   sendSuccess(res, row);
 });
 
+export const deleteProduct = asyncHandler(async (req: Request, res: Response) => {
+  const row = await catalog.deleteProduct(req.params.id as string, req.admin!.id);
+  sendSuccess(res, row);
+});
+
 export const addImage = asyncHandler(async (req: Request, res: Response) => {
   const row = await catalog.addProductImage(req.params.id as string, req.body);
   sendCreated(res, row);
