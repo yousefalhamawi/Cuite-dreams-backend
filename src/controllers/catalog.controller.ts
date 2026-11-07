@@ -32,6 +32,9 @@ export const patchCategory = asyncHandler(async (req: Request, res: Response) =>
 
 export const listProducts = asyncHandler(async (req: Request, res: Response) => {
   const admin = Boolean(req.admin);
+  const stockStatus = admin && (req.query.stockStatus === 'low' || req.query.stockStatus === 'out')
+    ? req.query.stockStatus
+    : undefined;
   const result = await catalog.listProducts({
     categoryId: req.query.categoryId as string | undefined,
     categorySlug: (req.query.category as string | undefined) ?? undefined,
@@ -50,6 +53,8 @@ export const listProducts = asyncHandler(async (req: Request, res: Response) => 
     maxPrice: req.query.maxPrice ? Number(req.query.maxPrice) : undefined,
     colors: asStringArray(req.query.color),
     sizes: asStringArray(req.query.size),
+    stockStatus,
+    includeStock: admin,
   });
   sendSuccess(res, result.items, 200, {
     page: result.page,
@@ -58,6 +63,8 @@ export const listProducts = asyncHandler(async (req: Request, res: Response) => 
     totalPages: result.totalPages,
     facets: result.facets,
     priceRange: result.priceRange,
+    stockFilterApplied: Boolean(stockStatus),
+    stockDataAvailable: admin,
   });
 });
 

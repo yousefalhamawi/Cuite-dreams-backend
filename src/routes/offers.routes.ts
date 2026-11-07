@@ -5,6 +5,7 @@ import { requireAdmin } from '../middlewares/auth';
 import { writeLimiter } from '../middlewares/rateLimit';
 import {
   offerCreateSchema,
+  offerPatchSchema,
   couponCreateSchema,
   paginationSchema,
   uuidParam,
@@ -73,6 +74,7 @@ router.patch(
   requireAdmin(),
   writeLimiter,
   validate(uuidParam, 'params'),
+  validate(offerPatchSchema),
   offers.patchOffer,
 );
 router.delete(

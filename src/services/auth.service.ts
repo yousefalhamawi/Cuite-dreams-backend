@@ -114,7 +114,7 @@ export async function rotateAdminRefresh(
     `SELECT rt.id, rt.admin_id, rt.family_id, rt.expires_at, rt.revoked_at, a.role
      FROM refresh_tokens rt
      JOIN admin_users a ON a.id = rt.admin_id
-     WHERE rt.token_hash = $1`,
+     WHERE rt.token_hash = $1 AND a.is_active = TRUE`,
     [tokenHash],
   );
 

@@ -7,6 +7,8 @@ import shippingRoutes from './shipping.routes';
 import offersRoutes from './offers.routes';
 import reviewRoutes from './review.routes';
 import uploadRoutes from './upload.routes';
+import adminUsersRoutes from './admin-users.routes';
+import exchangeRateRoutes from './exchange-rate.routes';
 import { publicReadLimiter } from '../middlewares/rateLimit';
 
 const router = Router();
@@ -21,6 +23,8 @@ router.get('/health', (_req, res) => {
 });
 
 router.use('/auth', authRoutes);
+router.use('/admin-users', adminUsersRoutes);
+router.use('/exchange-rate', exchangeRateRoutes);
 router.use('/catalog', catalogRoutes);
 router.use('/cart', cartRoutes);
 router.use('/orders', orderRoutes);
