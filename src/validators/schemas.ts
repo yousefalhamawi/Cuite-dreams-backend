@@ -13,6 +13,19 @@ export const adminLoginSchema = z.object({
   password: z.string().min(8),
 });
 
+export const deliveryUserCreateSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  email: z.string().trim().email(),
+  password: z.string().min(8).max(128),
+});
+
+export const deliveryUserPatchSchema = z.object({
+  is_active: z.boolean().optional(),
+  password: z.string().min(8).max(128).optional(),
+}).refine((value) => value.is_active !== undefined || value.password !== undefined, {
+  message: 'Provide a status or password',
+});
+
 export const customerPatchSchema = z.object({
   name: z.string().min(2).max(120).optional(),
   phone: z.string().min(8).max(20).optional(),
@@ -118,6 +131,7 @@ export const cartAddSchema = z.object({
       z.object({
         customization_id: z.string().uuid(),
         custom_text: z.string().max(500).optional(),
+        father_name: z.string().trim().max(40).optional(),
         chosen_color: z.string().optional(),
         chosen_design: z.string().optional(),
         notes: z.string().max(500).optional(),
@@ -134,7 +148,7 @@ export const cartQtySchema = z.object({
 export const checkoutSchema = z.object({
   session_id: z.string().min(8).optional(),
   shipping_zone_id: z.string().uuid(),
-  payment_method: z.literal('cham_cash').default('cham_cash'),
+  payment_method: z.enum(['cham_cash', 'bank_transfer']).default('cham_cash'),
   coupon_code: z.string().optional(),
   notes: z.string().max(1000).optional(),
   payment_receipt_url: z.string().url().optional(),
@@ -179,6 +193,7 @@ export const shippingRuleSchema = z.object({
 export const offerCreateSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
+  image_url: z.string().url().nullable().optional(),
   start_date: z.string().min(1),
   end_date: z.string().min(1),
   is_active: z.boolean().optional(),
@@ -190,6 +205,13 @@ export const offerCreateSchema = z.object({
       }),
     )
     .optional(),
+});
+
+export const offerPatchSchema = offerCreateSchema.omit({ products: true }).partial();
+
+export const exchangeRateUpdateSchema = z.object({
+  syp_per_usd: z.number().positive().max(1_000_000),
+  note: z.string().trim().max(500).nullable().optional(),
 });
 
 export const couponCreateSchema = z.object({

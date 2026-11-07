@@ -129,6 +129,7 @@ export async function addCartItem(
     customizations?: Array<{
       customization_id: string;
       custom_text?: string;
+      father_name?: string;
       chosen_color?: string;
       chosen_design?: string;
       notes?: string;
@@ -214,12 +215,13 @@ export async function addCartItem(
     for (const c of input.customizations) {
       await query(
         `INSERT INTO cart_item_customizations
-          (cart_item_id, customization_id, custom_text, chosen_color, chosen_design, notes)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+          (cart_item_id, customization_id, custom_text, father_name, chosen_color, chosen_design, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [
           item.id,
           c.customization_id,
           c.custom_text ?? null,
+          c.father_name ?? null,
           c.chosen_color ?? null,
           c.chosen_design ?? null,
           c.notes ?? null,

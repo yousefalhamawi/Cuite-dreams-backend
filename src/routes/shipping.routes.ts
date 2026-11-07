@@ -9,6 +9,31 @@ import { z } from 'zod';
 const router = Router();
 
 router.get('/zones', optionalAdmin, shipping.listZones);
+const neighborhoodName = z.string().trim().min(2).max(120);
+const neighborhoodsSchema = z.array(neighborhoodName).max(100).refine(
+  (names) => new Set(names.map((name) => name.toLocaleLowerCase())).size === names.length,
+  'Neighborhood names must be unique',
+);
+router.post(
+  '/zones',
+  requireAdmin(),
+  writeLimiter,
+  validate(z.object({
+    name: z.string().trim().min(2).max(120),
+    shipping_fee: z.number().nonnegative(),
+    free_shipping_threshold: z.number().nonnegative().nullable().optional(),
+    neighborhoods: neighborhoodsSchema.optional(),
+  })),
+  shipping.createZone,
+);
+router.put(
+  '/zones/:id/neighborhoods',
+  requireAdmin(),
+  writeLimiter,
+  validate(uuidParam, 'params'),
+  validate(z.object({ neighborhoods: neighborhoodsSchema })),
+  shipping.updateZoneNeighborhoods,
+);
 router.post(
   '/quote',
   validate(

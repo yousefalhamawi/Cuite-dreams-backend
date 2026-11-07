@@ -1,4 +1,4 @@
-export type AdminRole = 'super_admin';
+export type AdminRole = 'super_admin' | 'delivery';
 
 export type OrderStatus =
   | 'pending'

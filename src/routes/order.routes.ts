@@ -27,7 +27,7 @@ router.get('/me/:id', requireCustomer, validate(uuidParam, 'params'), orders.myO
 
 router.get(
   '/admin',
-  requireAdmin(),
+  requireAdmin('super_admin', 'delivery'),
   validate(paginationSchema, 'query'),
   orders.adminList,
 );
@@ -40,7 +40,7 @@ router.post(
 );
 router.get(
   '/admin/:id',
-  requireAdmin(),
+  requireAdmin('super_admin', 'delivery'),
   validate(uuidParam, 'params'),
   orders.adminGet,
 );

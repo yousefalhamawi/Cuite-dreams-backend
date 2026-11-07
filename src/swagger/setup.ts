@@ -10,7 +10,7 @@ const options: swaggerJsdoc.Options = {
       version: '1.0.0',
       description:
         'E-commerce API for newborn essentials — Syria-first, Gulf-ready.\n\n' +
-        '**Payments:** cash_on_delivery · bank_transfer · western_union · cham_cash\n\n' +
+        '**Payments:** cham_cash (receipt required) · bank_transfer (cash deposit, pending receipt review)\n\n' +
         'Customer tokens are stored in httpOnly cookies (`cd_access`, `cd_refresh`). ' +
         'Send requests with credentials. Guest cart uses `cd_session`.\n\n' +
         'Use **Try it out** with the JSON examples below. Admin and customer tokens use different JWT audiences.',
@@ -125,8 +125,8 @@ const options: swaggerJsdoc.Options = {
             },
             payment_method: {
               type: 'string',
-              enum: ['cash_on_delivery', 'bank_transfer', 'western_union'],
-              example: 'cash_on_delivery',
+              enum: ['cham_cash', 'bank_transfer'],
+              example: 'cham_cash',
             },
             coupon_code: { type: 'string', example: 'WELCOME10' },
             notes: { type: 'string', example: 'الاتصال قبل التوصيل' },
@@ -172,6 +172,7 @@ const options: swaggerJsdoc.Options = {
       { name: 'Cart' },
       { name: 'Orders' },
       { name: 'Shipping' },
+      { name: 'Settings' },
       { name: 'Offers' },
       { name: 'Reviews' },
       { name: 'Uploads' },

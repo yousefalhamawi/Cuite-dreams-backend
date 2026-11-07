@@ -3,6 +3,8 @@ import { verifyAccessToken } from '../utils/tokens';
 import { unauthorized } from '../utils/errors';
 import { COOKIE } from '../utils/cookies';
 import type { AdminRole } from '../types';
+import { query } from '../config/database';
+import { forbidden } from '../utils/errors';
 
 function extractCustomerToken(req: Request): string | null {
   const fromCookie = req.cookies?.[COOKIE.access];
@@ -20,8 +22,9 @@ function extractAdminToken(req: Request): string | null {
   return header.slice(7);
 }
 
-export function requireAdmin() {
-  return (req: Request, _res: Response, next: NextFunction): void => {
+export function requireAdmin(...allowedRoles: AdminRole[]) {
+  return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    let adminId: string;
     try {
       const token = extractAdminToken(req);
       if (!token) {
@@ -29,10 +32,26 @@ export function requireAdmin() {
         return;
       }
       const payload = verifyAccessToken('admin', token);
-      req.admin = { id: payload.sub, role: payload.role as AdminRole };
-      next();
+      adminId = payload.sub;
     } catch {
       next(unauthorized('Invalid or expired token'));
+      return;
+    }
+
+    try {
+      const { rows } = await query<{ role: AdminRole }>(
+        `SELECT role FROM admin_users WHERE id = $1 AND is_active = TRUE`,
+        [adminId],
+      );
+      const role = rows[0]?.role;
+      if (!role) return next(unauthorized());
+      if (!(allowedRoles.length ? allowedRoles : ['super_admin']).includes(role)) {
+        return next(forbidden('This account cannot access this section'));
+      }
+      req.admin = { id: adminId, role };
+      next();
+    } catch (error) {
+      next(error);
     }
   };
 }
@@ -53,12 +72,18 @@ export function requireCustomer(req: Request, _res: Response, next: NextFunction
 }
 
 /** Optional admin auth — attaches admin if a valid admin cookie is present. */
-export function optionalAdmin(req: Request, _res: Response, next: NextFunction): void {
+export async function optionalAdmin(req: Request, _res: Response, next: NextFunction): Promise<void> {
   try {
     const token = extractAdminToken(req);
     if (token) {
       const payload = verifyAccessToken('admin', token);
-      req.admin = { id: payload.sub, role: payload.role as AdminRole };
+      const { rows } = await query<{ role: AdminRole }>(
+        `SELECT role FROM admin_users WHERE id = $1 AND is_active = TRUE`,
+        [payload.sub],
+      );
+      if (rows[0]?.role === 'super_admin') {
+        req.admin = { id: payload.sub, role: 'super_admin' };
+      }
     }
   } catch {
     // ignore

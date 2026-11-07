@@ -18,7 +18,7 @@ const router = Router();
 router.post('/admin/login', authLimiter, validate(adminLoginSchema), auth.adminLogin);
 router.post('/admin/refresh', authLimiter, auth.adminRefresh);
 router.post('/admin/logout', auth.adminLogout);
-router.get('/admin/me', requireAdmin(), auth.adminMe);
+router.get('/admin/me', requireAdmin('super_admin', 'delivery'), auth.adminMe);
 
 router.post(
   '/customer/register',

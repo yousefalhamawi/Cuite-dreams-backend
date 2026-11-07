@@ -1,4 +1,5 @@
-import { query } from '../config/database';
+import { randomUUID } from 'node:crypto';
+import { query, withTransaction } from '../config/database';
 import { notFound, badRequest } from '../utils/errors';
 import { writeAudit } from './audit.service';
 
@@ -11,9 +12,9 @@ export async function listZones(activeOnly = true) {
           'free_shipping_threshold', r.free_shipping_threshold,
           'currency', r.currency,
           'is_active', r.is_active
-        ))
+        ) ORDER BY CASE WHEN r.currency = 'SAR' THEN 0 ELSE 1 END, r.created_at DESC)
         FROM shipping_rules r
-        WHERE r.zone_id = z.id AND ($1::boolean = FALSE OR r.is_active = TRUE)
+        WHERE r.zone_id = z.id AND r.is_active = TRUE
        ) AS rules
      FROM shipping_zones z
      WHERE ($1::boolean = FALSE OR z.is_active = TRUE)
@@ -23,7 +24,7 @@ export async function listZones(activeOnly = true) {
   return rows;
 }
 
-export async function quoteShipping(zoneId: string, subtotal: number, currency = 'SYP') {
+export async function quoteShipping(zoneId: string, subtotal: number, currency = 'SAR') {
   const { rows } = await query<{
     shipping_fee: string;
     free_shipping_threshold: string | null;
@@ -34,7 +35,8 @@ export async function quoteShipping(zoneId: string, subtotal: number, currency =
     `SELECT r.shipping_fee, r.free_shipping_threshold, r.currency, z.name AS zone_name, z.code AS zone_code
      FROM shipping_rules r
      JOIN shipping_zones z ON z.id = r.zone_id
-     WHERE r.zone_id = $1 AND r.currency = $2 AND r.is_active = TRUE AND z.is_active = TRUE
+     WHERE r.zone_id = $1 AND r.currency IN ($2, 'SYP') AND r.is_active = TRUE AND z.is_active = TRUE
+     ORDER BY CASE WHEN r.currency = $2 THEN 0 ELSE 1 END, r.created_at DESC
      LIMIT 1`,
     [zoneId, currency],
   );
@@ -56,6 +58,43 @@ export async function quoteShipping(zoneId: string, subtotal: number, currency =
     freeShippingThreshold: threshold,
     shippingCost,
   };
+}
+
+export async function createZone(
+  data: { name: string; shipping_fee: number; free_shipping_threshold?: number | null; neighborhoods?: string[] },
+  adminId: string,
+) {
+  const result = await withTransaction(async (client) => {
+    const { rows: zones } = await client.query(
+      `INSERT INTO shipping_zones (name, code, neighborhoods)
+       VALUES ($1, $2, $3) RETURNING *`,
+      [data.name.trim(), `AREA-${randomUUID().slice(0, 12).toUpperCase()}`, data.neighborhoods ?? []],
+    );
+    const { rows: rules } = await client.query(
+      `INSERT INTO shipping_rules (zone_id, shipping_fee, free_shipping_threshold, currency)
+       VALUES ($1, $2, $3, 'SAR') RETURNING *`,
+      [zones[0].id, data.shipping_fee, data.free_shipping_threshold ?? null],
+    );
+    return { zone: zones[0], rule: rules[0] };
+  });
+  await writeAudit({
+    actorType: 'admin', actorId: adminId, action: 'shipping_zone.create',
+    entityType: 'shipping_zones', entityId: result.zone.id, afterData: result,
+  });
+  return result.zone;
+}
+
+export async function updateZoneNeighborhoods(zoneId: string, neighborhoods: string[], adminId: string) {
+  const { rows } = await query(
+    `UPDATE shipping_zones SET neighborhoods = $1 WHERE id = $2 RETURNING *`,
+    [neighborhoods, zoneId],
+  );
+  if (!rows[0]) throw notFound('Shipping zone not found');
+  await writeAudit({
+    actorType: 'admin', actorId: adminId, action: 'shipping_zone.neighborhoods.update',
+    entityType: 'shipping_zones', entityId: zoneId, afterData: rows[0],
+  });
+  return rows[0];
 }
 
 export async function upsertShippingRule(

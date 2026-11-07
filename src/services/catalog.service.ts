@@ -166,6 +166,8 @@ export async function listProducts(filters: {
   maxPrice?: number;
   colors?: string[];
   sizes?: string[];
+  stockStatus?: 'low' | 'out';
+  includeStock?: boolean;
 }): Promise<PaginatedResult<unknown> & { facets: unknown[]; priceRange: { min: number; max: number } }> {
   const page = Math.max(1, filters.page ?? 1);
   const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
@@ -175,6 +177,21 @@ export async function listProducts(filters: {
   const where: string[] = [];
   const params: unknown[] = [];
   let i = 1;
+
+  // Delivery-time variants are artificial choices with very large stock.
+  // A simple product's `standard` row is ignored when real options exist.
+  const stockable = (alias: string) => `${alias}.is_active = TRUE AND NOT (
+    ${alias}.variant_type = 'style' AND (
+      ${alias}.value LIKE 'توصيل سريع (%' OR ${alias}.value LIKE 'توصيل عادي (%'
+    )
+  )`;
+  const inventoryVariant = `${stockable('v')} AND NOT (
+    v.variant_type = 'style' AND v.value = 'standard' AND EXISTS (
+      SELECT 1 FROM product_variants v_other
+      WHERE v_other.product_id = p.id AND ${stockable('v_other')}
+        AND NOT (v_other.variant_type = 'style' AND v_other.value = 'standard')
+    )
+  )`;
 
   if (activeOnly) {
     where.push(`p.is_active = TRUE`);
@@ -201,6 +218,19 @@ export async function listProducts(filters: {
   if (filters.excludeId) {
     where.push(`p.id <> $${i++}`);
     params.push(filters.excludeId);
+  }
+  if (filters.stockStatus === 'low') {
+    where.push(`EXISTS (
+      SELECT 1 FROM product_variants v
+      WHERE v.product_id = p.id AND ${inventoryVariant}
+        AND v.stock_qty BETWEEN 1 AND 5
+    )`);
+  } else if (filters.stockStatus === 'out') {
+    where.push(`NOT EXISTS (
+      SELECT 1 FROM product_variants v
+      WHERE v.product_id = p.id AND ${inventoryVariant}
+        AND v.stock_qty > 0
+    )`);
   }
 
   const facetWhere = [...where];
@@ -270,7 +300,10 @@ export async function listProducts(filters: {
           ORDER BY v.value)
         FROM product_variants v
         WHERE v.product_id = p.id AND v.variant_type = 'color' AND v.is_active = TRUE
-       ) AS colors
+       ) AS colors${filters.includeStock ? `,
+       (SELECT MIN(v.stock_qty)::int FROM product_variants v
+        WHERE v.product_id = p.id AND ${inventoryVariant} AND v.stock_qty > 0
+       ) AS lowest_available_stock` : ''}
      FROM products p
      JOIN categories c ON c.id = p.category_id
      ${whereSql}

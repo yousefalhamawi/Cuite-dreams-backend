@@ -1,5 +1,35 @@
 /**
  * @openapi
+ * /exchange-rate:
+ *   get:
+ *     tags: [Settings]
+ *     summary: Current Syrian pound rate for one US dollar
+ *     responses:
+ *       200:
+ *         description: Current rate, note, and last update time
+ *   put:
+ *     tags: [Settings, Admin]
+ *     security: [{ AdminBearer: [] }]
+ *     summary: Update the displayed Syrian pound conversion rate
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           example:
+ *             syp_per_usd: 142
+ *             note: Updated from today's market rate
+ *     responses:
+ *       200:
+ *         description: Rate saved
+ * /exchange-rate/history:
+ *   get:
+ *     tags: [Settings, Admin]
+ *     security: [{ AdminBearer: [] }]
+ *     summary: Last 30 exchange rate changes
+ *     responses:
+ *       200:
+ *         description: Rate history
+ *
  * /health:
  *   get:
  *     tags: [Health]
@@ -43,7 +73,7 @@
  *                   id: 11111111-1111-1111-1111-111111111111
  *                   name: Store Admin
  *                   email: admin@cutiebaby.local
- *                   role: admin
+ *                   role: super_admin
  *       401:
  *         description: Invalid credentials
  *         content:
@@ -103,6 +133,56 @@
  *               success: true
  *               data:
  *                 ok: true
+ *
+ * /admin-users/delivery:
+ *   get:
+ *     tags: [Admin]
+ *     security: [{ AdminBearer: [] }]
+ *     summary: List delivery accounts (super admin only)
+ *     responses:
+ *       200:
+ *         description: Delivery accounts without password hashes
+ *       403:
+ *         description: Delivery accounts cannot manage users
+ *   post:
+ *     tags: [Admin]
+ *     security: [{ AdminBearer: [] }]
+ *     summary: Create a delivery account (super admin only)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           example:
+ *             name: Delivery Staff
+ *             email: delivery@example.com
+ *             password: StrongTemporaryPassword123!
+ *     responses:
+ *       201:
+ *         description: Delivery account created
+ *       409:
+ *         description: Email already exists
+ *
+ * /admin-users/delivery/{id}:
+ *   patch:
+ *     tags: [Admin]
+ *     security: [{ AdminBearer: [] }]
+ *     summary: Activate, deactivate, or reset a delivery account password (super admin only)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           example:
+ *             is_active: false
+ *     responses:
+ *       200:
+ *         description: Delivery account updated
+ *       404:
+ *         description: Delivery account not found
  *
  * /auth/customer/register:
  *   post:
@@ -557,7 +637,7 @@
  * /orders/checkout:
  *   post:
  *     tags: [Orders]
- *     summary: Checkout cart (COD / bank / Western Union)
+ *     summary: Checkout cart (Sham Cash or cash deposit)
  *     parameters:
  *       - in: header
  *         name: Idempotency-Key
@@ -571,12 +651,13 @@
  *           schema:
  *             $ref: '#/components/schemas/CheckoutRequest'
  *           examples:
- *             cashOnDelivery:
- *               summary: Cash on delivery (Syria)
+ *             chamCash:
+ *               summary: Sham Cash with uploaded payment receipt
  *               value:
  *                 session_id: guest-session-abc12345
  *                 shipping_zone_id: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
- *                 payment_method: cash_on_delivery
+ *                 payment_method: cham_cash
+ *                 payment_receipt_url: https://example.com/receipts/payment.jpg
  *                 coupon_code: WELCOME10
  *                 notes: الاتصال قبل التوصيل
  *                 customer:
@@ -586,11 +667,11 @@
  *                   address: المزة، شارع الجلاء، بناء 12
  *                   city: دمشق
  *                   country: SY
- *             westernUnion:
- *               summary: Western Union
+ *             cashDeposit:
+ *               summary: Cash deposited at an exchange cashier; receipt sent via WhatsApp
  *               value:
  *                 shipping_zone_id: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
- *                 payment_method: western_union
+ *                 payment_method: bank_transfer
  *                 customer:
  *                   name: Sara Ahmad
  *                   phone: "0944123456"
@@ -608,7 +689,7 @@
  *                 id: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
  *                 order_number: CB260826123456
  *                 status: pending
- *                 payment_method: cash_on_delivery
+ *                 payment_method: cham_cash
  *                 subtotal: "53000.00"
  *                 shipping_cost: "1000.00"
  *                 discount_total: "5300.00"
@@ -657,7 +738,7 @@
  *   get:
  *     tags: [Orders, Admin]
  *     security: [{ AdminBearer: [] }]
- *     summary: Admin list orders
+ *     summary: List orders (super admin or delivery, read only for delivery)
  *     parameters:
  *       - in: query
  *         name: status
@@ -778,7 +859,7 @@
  * /shipping/zones:
  *   get:
  *     tags: [Shipping]
- *     summary: List shipping zones (Syria active; Gulf ready)
+ *     summary: List shipping areas with their neighborhoods and active rules
  *     responses:
  *       200:
  *         description: Zones + rules
@@ -791,6 +872,7 @@
  *                   name: Syria
  *                   code: SY
  *                   is_active: true
+ *                   neighborhoods: []
  *                   rules:
  *                     - id: cccccccc-cccc-cccc-cccc-cccccccccccc
  *                       shipping_fee: "1000.00"
@@ -802,6 +884,41 @@
  *                   code: GULF
  *                   is_active: false
  *                   rules: null
+ *   post:
+ *     tags: [Shipping, Admin]
+ *     security: [{ AdminBearer: [] }]
+ *     summary: Create a shipping area with its initial fee
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           example:
+ *             name: الرياض
+ *             shipping_fee: 20
+ *             free_shipping_threshold: 200
+ *     responses:
+ *       201:
+ *         description: Area created
+ *
+ * /shipping/zones/{id}/neighborhoods:
+ *   put:
+ *     tags: [Shipping, Admin]
+ *     security: [{ AdminBearer: [] }]
+ *     summary: Replace the neighborhoods of an area
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           example:
+ *             neighborhoods: [حي النرجس, حي الياسمين]
+ *     responses:
+ *       200:
+ *         description: Neighborhoods saved
  *
  * /shipping/quote:
  *   post:
@@ -865,6 +982,7 @@
  *                 - id: dddddddd-dddd-dddd-dddd-dddddddddddd
  *                   name: عرض استقبال المولود
  *                   description: خصم على أطقم الأم والبطانيات
+ *                   image_url: https://cdn.example.com/offers/welcome.jpg
  *                   start_date: "2026-08-01T00:00:00.000Z"
  *                   end_date: "2026-09-30T23:59:59.000Z"
  *                   is_active: true
@@ -885,6 +1003,7 @@
  *           example:
  *             name: عرض استقبال المولود
  *             description: خصم على أطقم الأم والبطانيات
+ *             image_url: https://cdn.example.com/offers/welcome.jpg
  *             start_date: "2026-08-01T00:00:00.000Z"
  *             end_date: "2026-09-30T23:59:59.000Z"
  *             is_active: true

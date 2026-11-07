@@ -102,6 +102,7 @@ export async function createOffer(
   data: {
     name: string;
     description?: string;
+    image_url?: string | null;
     start_date: string;
     end_date: string;
     is_active?: boolean;
@@ -111,11 +112,12 @@ export async function createOffer(
 ) {
   const slug = await uniqueSlug(slugifyEn(data.name), (s) => offerSlugTaken(s));
   const { rows } = await query(
-    `INSERT INTO offers (name, description, slug, start_date, end_date, is_active)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    `INSERT INTO offers (name, description, image_url, slug, start_date, end_date, is_active)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
     [
       data.name,
       data.description ?? null,
+      data.image_url ?? null,
       slug,
       data.start_date,
       data.end_date,
@@ -151,7 +153,7 @@ export async function patchOffer(
   patch: Record<string, unknown>,
   adminId: string,
 ) {
-  const allowed = ['name', 'description', 'start_date', 'end_date', 'is_active'] as const;
+  const allowed = ['name', 'description', 'image_url', 'start_date', 'end_date', 'is_active'] as const;
   const sets: string[] = [];
   const vals: unknown[] = [];
   let i = 1;

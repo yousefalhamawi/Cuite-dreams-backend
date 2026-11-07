@@ -130,7 +130,7 @@ export async function checkout(input: CheckoutInput) {
     const shipping = await quoteShipping(
       input.shipping_zone_id,
       subtotal,
-      'SYP',
+      'SAR',
     );
 
     const { couponId, discount } = await applyCoupon(
@@ -226,14 +226,16 @@ export async function checkout(input: CheckoutInput) {
       for (const c of customs) {
         await client.query(
           `INSERT INTO order_item_customizations
-            (order_item_id, customization_id, custom_text, chosen_color, chosen_design)
-           VALUES ($1,$2,$3,$4,$5)`,
+            (order_item_id, customization_id, custom_text, father_name, chosen_color, chosen_design, notes)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
           [
             oi.rows[0].id,
             c.customization_id,
             c.custom_text ?? null,
+            c.father_name ?? null,
             c.chosen_color ?? null,
             c.chosen_design ?? null,
+            c.notes ?? null,
           ],
         );
       }
